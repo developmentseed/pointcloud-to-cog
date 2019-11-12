@@ -1,0 +1,3 @@
+[submodule "lambda"]
+	path = lambda
+	url = https://github.com/PDAL/lambda.git

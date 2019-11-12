@@ -1,0 +1,159 @@
+service: pdal-watchbot
+
+provider:
+  name: aws
+  runtime: python3.7
+  stage: ${opt:stage, 'production'}
+  region: ${opt:region, 'us-east-1'}
+  
+  deploymentBucket: ${opt:bucket}
+  
+  # Add Tags to resources
+  # stackTags:
+  #   project: labs
+  
+  iamRoleStatements:
+  -  Effect: "Allow"
+     Action:
+       - "*"
+     Resource:
+       - "arn:aws:s3:::${opt:bucket}*"
+
+  -  Effect: "Allow"
+     Action:
+       - "sns:Publish"
+     Resource:
+       - !Ref WatchbotTopic
+       - !Ref WatchbotDLQTopic
+
+package:
+  artifact: package.zip
+
+functions:
+  translator:
+    handler: app.handler.main
+    memorySize: 3008
+    timeout: 900
+    reservedConcurrency: 50
+    layers:
+      - arn:aws:lambda:us-east-1:163178234892:layer:pdal:15
+    environment:
+      COG_BUCKET: ${opt:bucket}
+      GDAL_CACHEMAX: 25%
+      GDAL_DATA: /opt/share/gdal
+      PROJ_LIB: /opt/share/proj
+      PYTHONWARNINGS: ignore
+    onError: !Ref WatchbotDLQTopic
+    events:
+      - sqs:
+          arn: !GetAtt
+            - WatchbotQueue
+            - Arn
+          batchSize: 1
+
+resources:
+  Resources:
+    # From https://www.jeremydaly.com/how-to-use-sns-and-sqs-to-distribute-and-throttle-events/
+    # Create SNS Topic
+    WatchbotTopic:
+      Type: AWS::SNS::Topic
+      Properties:
+        TopicName: ${self:service}-${self:provider.stage}-WatchbotTopic
+
+    # Create our SQS queue
+    WatchbotQueue:
+      Type: "AWS::SQS::Queue"
+      Properties:
+        VisibilityTimeout: 900
+        QueueName: ${self:service}-${self:provider.stage}-WatchbotQueue
+        RedrivePolicy:
+          deadLetterTargetArn: !GetAtt
+            - WatchbotDeadLetterQueue
+            - Arn
+          maxReceiveCount: 1
+
+    # Create SQS Queue Policies
+    snsWatchbotQueuePolicy:
+      Type: AWS::SQS::QueuePolicy
+      Properties:
+        PolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            - Sid: "allow-sns-messages"
+              Effect: Allow
+              Principal: "*"
+              Resource: !GetAtt
+                - WatchbotQueue
+                - Arn
+              Action: "SQS:SendMessage"
+              Condition:
+                ArnEquals:
+                  "aws:SourceArn": !Ref WatchbotTopic
+        Queues:
+          - Ref: WatchbotQueue
+
+    # Create the subscription to the 'WatchbotQueue'
+    WatchbotQueueSubscription:
+      Type: 'AWS::SNS::Subscription'
+      Properties:
+        TopicArn: !Ref WatchbotTopic
+        Endpoint: !GetAtt
+          - WatchbotQueue
+          - Arn
+        Protocol: sqs
+        RawMessageDelivery: 'false'
+
+    WatchbotDLQTopic:
+      Type: AWS::SNS::Topic
+      Properties:
+        TopicName: ${self:service}-${self:provider.stage}-WatchbotDLQTopic
+
+    # Create our Dead Letter SQS
+    WatchbotDeadLetterQueue:
+      Type: AWS::SQS::Queue
+      Properties:
+        QueueName: ${self:service}-${self:provider.stage}-WatchbotDeadLetterQueue
+
+    # Create SQS Queue Policies
+    snsWatchbotDLQPolicy:
+      Type: AWS::SQS::QueuePolicy
+      Properties:
+        PolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            - Sid: "allow-sns-messages"
+              Effect: Allow
+              Principal: "*"
+              Resource: !GetAtt
+                - WatchbotDeadLetterQueue
+                - Arn
+              Action: "SQS:SendMessage"
+              Condition:
+                ArnEquals:
+                  "aws:SourceArn": !Ref WatchbotDLQTopic
+        Queues:
+          - Ref: WatchbotDeadLetterQueue
+
+    # Create the subscription to the 'WatchbotQueue'
+    WatchbotDLQSubscription:
+      Type: 'AWS::SNS::Subscription'
+      Properties:
+        TopicArn: !Ref WatchbotDLQTopic
+        Endpoint: !GetAtt
+          - WatchbotDeadLetterQueue
+          - Arn
+        Protocol: sqs
+        RawMessageDelivery: 'false'
+
+  Outputs:
+    WatchbotTopic:
+      Value:
+        "Ref": WatchbotTopic
+      Export:
+        Name: ${self:service}-${self:provider.stage}-WatchbotTopic
+
+    WatchbotDLQTopic:
+      Value:
+        "Ref": WatchbotDLQTopic
+      Export:
+        Name: ${self:service}-${self:provider.stage}-WatchbotDLQTopic
