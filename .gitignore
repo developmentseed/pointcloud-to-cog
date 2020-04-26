@@ -107,3 +107,6 @@ ENV/
 package.zip
 
 .serverless
+mtl.json.gz
+list_files.txt
+indexlidar2015.csv
