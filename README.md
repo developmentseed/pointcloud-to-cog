@@ -28,9 +28,18 @@ This repo host the code for a serverless architecture enabling creation of Cloud
 $ npm install serverless -g 
 ```
 
+2. (Temporary) Clone PDAL/lambda
+
+```bash
+# In pointcloud-to-cog/ directory
+git clone https://github.com/PDAL/lambda
+cd lambda && git checkout 6eddf86
+```
+
 2. Create Lambda package
 
 ```bash
+# In pointcloud-to-cog/ directory
 $ make build
 ```
 
@@ -84,7 +93,7 @@ Options:
 ```bash
 
 $ cd scripts/
-$ cat ../list+file.txt | python -m create_jobs - \
+$ cat ../list_files.txt | python -m create_jobs - \
    -p webp \
    --co blockxsize=256 \
    --co blockysize=256 \
@@ -107,5 +116,5 @@ $ pip install git+http://github.com/developmentseed/cogeo-mosaic
 
 # Create mosaic
 
-$ aws s3 ls my-bucket/my-prefix/ | awk '{print "s3:/my-bucket/my-prefix/"$NF}'  | cogeo-mosaic create - | gzip > mtl.json.gz
+$ aws s3 ls my-bucket/my-prefix/ | awk '{print "s3://my-bucket/my-prefix/"$NF}'  | cogeo-mosaic create - | gzip > mtl.json.gz
 ```
