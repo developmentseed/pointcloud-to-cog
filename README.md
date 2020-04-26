@@ -116,5 +116,5 @@ $ pip install git+http://github.com/developmentseed/cogeo-mosaic
 
 # Create mosaic
 
-$ aws s3 ls my-bucket/my-prefix/ | awk '{print "s3:/my-bucket/my-prefix/"$NF}'  | cogeo-mosaic create - | gzip > mtl.json.gz
+$ aws s3 ls my-bucket/my-prefix/ | awk '{print "s3://my-bucket/my-prefix/"$NF}'  | cogeo-mosaic create - | gzip > mtl.json.gz
 ```
