@@ -36,14 +36,14 @@ git clone https://github.com/PDAL/lambda
 cd lambda && git checkout 6eddf86
 ```
 
-2. Create Lambda package
+3. Create Lambda package
 
 ```bash
 # In pointcloud-to-cog/ directory
 $ make build
 ```
 
-3. Deploy the Serverless stack
+4. Deploy the Serverless stack
 
 ```bash
 $ sls deploy --stage production --bucket my-bucket --region us-east-1
